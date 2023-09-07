@@ -2,61 +2,51 @@
 
 extern printf
 
+extern clear_screen
+extern draw_field
+
 section .data
-	IOCTL  equ 0x10
-	TCGETS equ 0x5401
-	TCSETS equ 0x5402
+	IOCTL     equ  0x10
+	TIOCGWS   equ  0x5413
 
-	READ equ 0x00
-	WRITE equ 0x01
-	SELECT equ 0x17
+	READ      equ  0x00
+	WRITE     equ  0x01
+	SELECT    equ  0x17
 
-	msg db "Waiting for a button", 0x00
-	msg_len equ $-msg-1
-	msg2 db 0x0a, "%x", 0x00
+	MVCR_SEQ  db   0x1b, "[%d;%dH"
+	MVCR_LEN  equ  $ - MVCR_SEQ
 
-	fd_set dd 0x00
-	up_code dw 0xe048
+	msg       db   "Waiting for a button", 0x0a, 0x00
+	msg_len   equ  $-msg-1
+	msg2      db   0x0a, "%x", 0x00
+	msgd      db   "%d", 0x00
+
+	fd_set    dd   0x00
+	up_code   dw   0xe048
 
 section .bss
 	char resb 1
-	termios:
-	    c_iflag     resd 1
-	    c_oflag     resd 1
-	    c_cflag     resd 1
-	    c_lflag     resd 1
-	    c_line      resb 1
-	    c_cc        resb 19
 	timeval:
 	    time_t      resq 1
 	    suseconds_t resq 1
+	winsize:
+	    ws_row      resw 1
+	    ws_col      resw 1
+	    ws_xpixel   resw 1
+	    ws_ypixel   resw 1
 
 section .text
 	global main
-	global save_settings
-	global set_settings
+	global get_winsize
 
-save_settings:
+get_winsize:
 	push rbp
 	mov rbp, rsp
 
 	mov rax, IOCTL
 	mov rdi, 0x00
-	mov rsi, TCGETS
-	mov rdx, termios
-	syscall
-
-	leave
-	ret
-
-set_settings:
-	push rbp
-	mov rbp, rsp
-
-	mov rax, IOCTL
-	mov rdi, 0x00
-	mov rsi, TCSETS
-	mov rdx, termios
+	mov rsi, TIOCGWS
+	mov rdx, winsize
 	syscall
 
 	leave
@@ -66,9 +56,14 @@ main:
 	push rbp
 	mov rbp, rsp
 
-	call save_settings
-	and byte[c_lflag], 0xfd; Non-canonical terminal
-	call set_settings
+	call clear_screen
+	call get_winsize
+
+	xor rdi, rdi
+	xor rsi, rsi
+	mov di, [winsize]
+	mov si, [winsize + 2]
+	call draw_field
 
 .select:
 	mov byte[time_t],      0x00
