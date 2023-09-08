@@ -9,15 +9,76 @@ section .data
 	HOME_LEN	equ	$ - HOME_SEQ
 	CLSC_SEQ	db	0x1b, "[2J"
 	CLSC_LEN	equ	$ - CLSC_SEQ
-	MVCR_SEQ	db	0x1b, "[%d;%dH"
-	MVCR_LEN	equ	$ - MVCR_SEQ
+
+	board		db	"--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------", 0x00
+	plots		db	"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ", 0x00
 
 section .bss
-	board		resb 	1024
-	MV_CRSR		resb	9
+	MVCR_SEQ	resb	10	; 0x1b, "[%d;%dH", 0x00
+	MVCR_LEN	resq	1
+	divisor		resq	1
 section .text
 	global 		clear_screen
 	global		draw_field
+
+move_cursor:
+	push	rbp
+	mov	rbp, rsp
+
+	mov	byte[MVCR_SEQ], 0x1b		; <ESC>
+	mov	byte[MVCR_SEQ+1], 0x5b		; '['
+
+	push	rsi				; Columns number
+	mov	qword[divisor], 0x0a
+
+	xor	rdx, rdx			; Fill the line number
+	mov	rax, rdi			; Divide to 10
+	idiv	qword[divisor]			; Leftovers to string
+	add	rdx, 0x30
+	mov	byte[MVCR_SEQ+4], dl
+
+	xor	rdx, rdx
+	idiv	qword[divisor]
+	add	rdx, 0x30
+	mov	byte[MVCR_SEQ+3], dl
+
+
+	xor	rdx, rdx
+	idiv	qword[divisor]
+	add	rdx, 0x30
+	mov	byte[MVCR_SEQ+2], dl
+
+	mov	byte[MVCR_SEQ+5], 0x3b		; Put the ';'
+
+	xor	rdx, rdx			; Fill the column number
+	pop	rax				; Similar scheme
+	idiv	qword[divisor]
+	add	rdx, 0x30
+	mov	byte[MVCR_SEQ+8], dl
+
+	xor	rdx, rdx
+	idiv	qword[divisor]
+	add	rdx, 0x30
+	mov	byte[MVCR_SEQ+7], dl
+
+
+	xor	rdx, rdx
+	idiv	qword[divisor]
+	add	rdx, 0x30
+	mov	byte[MVCR_SEQ+6], dl
+
+	mov	byte[MVCR_SEQ+9], 0x48		; Put the 'H'
+	mov	byte[MVCR_SEQ+10], 0x00		; Put the EOL
+
+	mov	rax, WRITE			; Write
+	mov	rdi, 0x01			; move_cursor
+	mov	rsi, MVCR_SEQ			; command
+	mov	rdx, 0x0a
+	syscall
+
+	mov	rsp, rbp
+	pop	rbp
+	ret
 
 clear_screen:
 	push	rbp
@@ -44,37 +105,68 @@ draw_field:
 	mov  	rbp, rsp
 
 	mov  	r12, rdi		; Number of rows
-	sub  	r12, 0x04		; Without borders
+	sub  	r12, 0x02		; Without last border
 	mov  	r13, rsi		; Number of columns
 	sub  	r13, 0x04		; Without borders
 
-	mov  	rdi, MVCR_SEQ
-	mov  	rsi, 0x02
-	mov  	rdx, 0x02
-	mov  	rax, 0x00
-	call 	printf
-
+crt_tnb:
 	mov	rax, board		; String pointer
 	mov	byte[rax], 0x2b		; First '+'
+	add	rax, r13
+	inc	rax
+	mov	byte[rax], 0x2b		; Last '+'
+	inc	rax
+	mov	byte[rax], 0x00
 
-	mov	rdi, 0x00		; Counter
-fill_top:
-	inc	rax			; Move on string
-	mov	byte[rax], 0x2d		; Filling it with '-'
-	inc	rdi			; Updating counter
-	cmp	rdi, r13		; If string filled...
-	jnz	fill_top		; ...Moving on
+crt_mid:
+	mov	rax, plots		; String pointer
+	mov	byte[rax], 0x7c		; First '|'
+	add	rax, r13
+	inc	rax
+	mov	byte[rax], 0x7c		; Last '|'
+	inc	rax
+	mov	byte[rax], 0x00
 
-	inc	rax			; Next
-	mov	byte[rax], 0x2b		; Putting second '+'
-	inc	rax			; And
-	mov  	byte[rax], 0x00		; End of line
+	add	r13, 0x02		; It is with visible borders now
+
+strt_drw:
+	mov	r14, 0x02
+
+	mov	rdi, r14
+	mov	rsi, 0x02
+	call	move_cursor
 
 	mov	rax, WRITE
 	mov	rdi, 0x01
 	mov	rsi, board
 	mov	rdx, r13
-	add	rdx, 2
+	syscall
+
+drw_mid:
+	inc	r14
+
+	mov	rdi, r14
+	mov	rsi, 0x02
+	call	move_cursor
+
+	mov	rax, WRITE
+	mov	rdi, 0x01
+	mov	rsi, plots
+	mov	rdx, r13
+	syscall
+
+	cmp	r14, r12
+	jnz	drw_mid
+
+	inc	r14
+	mov	rdi, r14
+	mov	rsi, 0x02
+	call	move_cursor
+
+	mov	rax, WRITE
+	mov	rdi, 0x01
+	mov	rsi, board
+	mov	rdx, r13
 	syscall
 
 	mov  	rsp, rbp
