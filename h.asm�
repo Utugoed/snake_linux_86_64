@@ -33,19 +33,20 @@ section .bss
 		sa_flags	resq	1
 		sa_restorer	resq	1
 
-	canon_terminal:
+	can_termios:
 		stty		resb	12
 		slflag		resb	4
 		srest		resb	44
-	noncan_terminal:
+
+	noncan_termios:
 		tty		resb	12
 		lflag		resb	4
-		nrest		resb	44
+		rest		resb	44
 
 section .text
 	global main
-	global	setcanon
-	global	setnoncan
+	global setcanon
+	global setnoncan
 
 setnoncan:
 	push	rbp
@@ -54,45 +55,12 @@ setnoncan:
 	mov	rax, IOCTL
 	mov	rdi, STDIN
 	mov	rsi, TCGETS
-	mov	rdx, canon_terminal
+	mov	rdx, can_termios
 	syscall
-
-	mov	rax, IOCTL
-	mov	rdi, STDIN
-	mov	rsi, TCGETS
-	mov	rdx, noncan_terminal
-	syscall
-
-	and	dword[lflag], (~ICANON)
-	and	dword[lflag], (~ECHO)
-
-	mov	rax, IOCTL
-	mov	rdi, STDIN
-	mov	rsi, TCSETS
-	mov	rdx, noncan_terminal
-	syscall
-
-	mov	rsp, rbp
-	pop	rbp
-
-setcanon:
-	push	rbp
-	mov	rbp, rsp
-
-	mov	rax, IOCTL
-	mov	rdi, STDIN
-	mov	rsi, TCSETS
-	mov	rdx, canon_terminal
-	syscall
-
-	mov	rsp, rbp
-	pop	rbp
 
 main:
 	push	rbp
 	mov	rbp, rsp
-
-	call	setnoncan
 
 .snd_msg:
 	mov	dword[tv_sec], 0x00
@@ -115,7 +83,7 @@ main:
 	add	ah, 0x30
 
 .print:
-	mov	byte[msg+25], al
+	mov	byte[msg+25], ah
 	mov	rax, 0x01
 	mov	rdi, 0x01
 	mov	rsi, msg
