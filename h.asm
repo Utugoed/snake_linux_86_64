@@ -14,7 +14,7 @@ section .data
 	STDIN			equ	0x00
 
 	msg2			db	"SG2", 0x0a, 0x00
-	msg			db	"Number of pressed btns - ", 0x00, 0x0a, 0x00
+	msg			db	"Number of pressed btns - ", 0x0a, 0x0a, 0x00
 	fd_set			dd	0x00
 	timer:
 		tv_sec		dq	0x01
@@ -22,6 +22,10 @@ section .data
 	remtimer:
 		tv_sec_rem	dq	0x00
 		tv_nsec_rem	dq	0x00
+	pollfd:
+		fd		dd	0
+		events		dw	1
+		revents		dw	0
 
 section .bss
 	content			resb	4
@@ -41,7 +45,6 @@ section .bss
 		tty		resb	12
 		lflag		resb	4
 		nrest		resb	44
-
 section .text
 	global main
 	global	setcanon
@@ -98,13 +101,14 @@ main:
 	mov	dword[tv_sec], 0x00
 	mov	dword[tv_nsec], 0x080000
 
-	mov	rax, 0x17
-	mov	rdi, 0x01
-	mov	rsi, fd_set
+	mov	rax, 0x07
+	mov	rdi, pollfd
+	mov	rsi, 0x01
 	mov	rdx, 0x00
-	mov	r10, 0x00
-	mov	r8,  timer
 	syscall
+
+	test	rax, rax
+	jz	.end
 
 ;	mov	rax, 0x00
 ;	mov	rdi, 0x00
@@ -123,6 +127,7 @@ main:
 	syscall
 
 	jmp	.snd_msg
+.end:
 
 	mov	rsp, rbp
 	pop	rbp
