@@ -28,8 +28,8 @@ section .data
 	emptpnt		db	0x20
 
 	bias:
-		bias_x	db	0x02
-		bias_y	db	0x00
+		bias_x	dw	0x02
+		bias_y	dw	0x00
 	pollfd:
 		pfd	dd	0x00
 		events	dw	0x01
@@ -58,8 +58,8 @@ section .bss
 		nrest	resb	44
 
 	worm:
-		worm_x	resb	1
-		worm_y	resb	1
+		worm_x	resw	1
+		worm_y	resw	1
 
 section .text
 	global main
@@ -114,22 +114,22 @@ move_point:
 	mov	rbp, rsp
 
 	xor	rax, rax
-	mov	al, byte[worm_x]
+	mov	ax, word[worm_x]
 	mov	rsi, rax
-	mov	al, byte[worm_y]
+	mov	ax, word[worm_y]
 	mov	rdi, rax
 	call	erase_point
 
 	xor	rax, rax
-	mov	al, byte[bias_x]
-	add	byte[worm_x], al
-	mov	al, byte[bias_y]
-	add	byte[worm_y], al
+	mov	ax, word[bias_x]
+	add	word[worm_x], ax
+	mov	ax, word[bias_y]
+	add	word[worm_y], ax
 
 	xor	rax, rax		; Draw point
-	mov	al, byte[worm_y]	; With coordinates
+	mov	ax, word[worm_y]	; With coordinates
 	mov	rdi, rax
-	mov	al, byte[worm_x]
+	mov	ax, word[worm_x]
 	mov	rsi, rax
 	call	draw_point
 
@@ -143,32 +143,69 @@ check_redirection:
 
 	cmp	byte[char], 0x77		; 'w'
 	jne	.ch_red_a
-	mov	byte[bias_y], 0xff
-	mov	byte[bias_x], 0x00
+	mov	word[bias_y], 0xffff
+	mov	word[bias_x], 0x00
 
 	.ch_red_a:
 		cmp	byte[char], 0x61	; 'a'
 		jne	.ch_red_s
-		mov	byte[bias_y], 0x00
-		mov	byte[bias_x], 0xfe
+		mov	word[bias_y], 0x00
+		mov	word[bias_x], 0xfffe
 
 	.ch_red_s:
 		cmp	byte[char], 0x73	; 's'
 		jne	.ch_red_d
-		mov	byte[bias_y], 0x01
-		mov	byte[bias_x], 0x00
+		mov	word[bias_y], 0x01
+		mov	word[bias_x], 0x00
 
 	.ch_red_d:
 		cmp	byte[char], 0x64	; 'd'
 		jne	.ch_red_end
-		mov	byte[bias_y], 0x00
-		mov	byte[bias_x], 0x02
+		mov	word[bias_y], 0x00
+		mov	word[bias_x], 0x02
 
 	.ch_red_end:
 		mov	rsp, rbp
 		pop	rbp
 		ret
 
+check_outside:
+	push	rbp
+	mov	rbp, rsp
+
+	cmp	word[worm_x], 0x02
+	mov	rax, 0x01
+	mov	rsp, rbp
+	pop	rbp
+	ret
+
+	.ch_put_r:
+		xor	rdi, rdi
+		mov	
+		cmp	word[worm_x], 
+		mov	rax, 0x01
+		mov	rsp, rbp
+		pop	rbp
+		ret
+
+	.ch_out_t:
+		cmp	word[worm_x], 0x02
+		mov	rax, 0x01
+		mov	rsp, rbp
+		pop	rbp
+		ret
+
+	.ch_out_b:
+		cmp	word[worm_x], 0x02
+		mov	rax, 0x01
+		mov	rsp, rbp
+		pop	rbp
+		ret
+
+	mov	rax, 0x00
+	mov	rsp, rbp
+	pop	rbp
+	ret
 main:
 	push 	rbp
 	mov 	rbp, rsp
@@ -186,13 +223,13 @@ main:
 	mov 	si, word[ws_col]
 	call 	draw_field
 
-	mov	byte[worm_y], 0x03	; Start point
-	mov	byte[worm_x], 0x03
+	mov	word[worm_y], 0x03	; Start point
+	mov	word[worm_x], 0x03
 
 	xor	rax, rax		; Draw point
-	mov	al, byte[worm_y]	; With coordinates
+	mov	ax, word[worm_y]	; With coordinates
 	mov	rdi, rax
-	mov	al, byte[worm_x]
+	mov	ax, word[worm_x]
 	mov	rsi, rax
 	call	draw_point
 
