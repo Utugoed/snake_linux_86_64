@@ -4,10 +4,28 @@ extern printf
 
 section .data
 	SLEEP			equ	0x23
-	IOCTL			equ	0x20
+	IOCTL			equ	0x10
 
-	ICANON			equ	0x02
-	ECHO			equ	0x08
+	IGNBRK 			equ	0x1
+	BRKINT			equ	0x2
+	PARMRK			equ	0x8
+	ISTRIP			equ	0x20
+	INLCR			equ	0x40
+	IGNCR			equ	0x80
+	ICRNL			equ	0x100
+	IXON			equ	0x400
+
+	OPOST			equ	0x1
+	ECHO			equ	0x8
+	ECHONL			equ	0x40
+	ICANON			equ	0x2
+	ISIG			equ	0x1
+	IEXTEN			equ	0x8000
+	CSIZE			equ	0x30
+	PARENB			equ	0x100
+	CS8			equ	0x30
+
+
 	TCGETS			equ	0x5401
 	TCSETS			equ	0x5402
 
@@ -23,9 +41,9 @@ section .data
 		tv_sec_rem	dq	0x00
 		tv_nsec_rem	dq	0x00
 	pollfd:
-		fd		dd	0
-		events		dw	1
-		revents		dw	0
+		fd		dd	0x00
+		events		dw	0x01
+		revents		dw	0x00
 
 section .bss
 	content			resb	4
@@ -38,11 +56,15 @@ section .bss
 		sa_restorer	resq	1
 
 	canon_terminal:
-		stty		resb	12
+		ciflag		resb	4
+		coflag		resb	4
+		ccflag		resb	4
 		slflag		resb	4
 		srest		resb	44
 	noncan_terminal:
-		tty		resb	12
+		iflag		resb	4
+		oflag		resb	4
+		cflag		resb	4
 		lflag		resb	4
 		nrest		resb	44
 section .text
@@ -54,20 +76,24 @@ setnoncan:
 	push	rbp
 	mov	rbp, rsp
 
+	push	rsi
+
+	mov	rdx, rdi
 	mov	rax, IOCTL
 	mov	rdi, STDIN
 	mov	rsi, TCGETS
-	mov	rdx, canon_terminal
 	syscall
 
+	pop	rdx
+	push	rdx
 	mov	rax, IOCTL
 	mov	rdi, STDIN
 	mov	rsi, TCGETS
-	mov	rdx, noncan_terminal
 	syscall
 
-	and	dword[lflag], (~ICANON)
-	and	dword[lflag], (~ECHO)
+	pop	rdx
+	and	dword[rdx+3], (~ECHO)
+	and	dword[rdx+3], (~ICANON)
 
 	mov	rax, IOCTL
 	mov	rdi, STDIN
@@ -77,57 +103,47 @@ setnoncan:
 
 	mov	rsp, rbp
 	pop	rbp
+	ret
+
+;	and	dword[iflag], (~IGNBRK)
+;	and	dword[iflag], (~BRKINT)
+;	and	dword[iflag], (~PARMRK)
+;	and	dword[iflag], (~ISTRIP)
+;	and	dword[iflag], (~INLCR)
+;	and	dword[iflag], (~IGNCR)
+;	and	dword[iflag], (~ICRNL)
+;	and	dword[iflag], (~IXON)
+
+;	and	dword[oflag], (~OPOST)
+
+;	and	dword[lflag], (~ECHONL)
+;	and	dword[lflag], (~ISIG)
+;	and	dword[lflag], (~IEXTEN)
+
+;	and	dword[cflag], (~CSIZE)
+;	and	dword[cflag], (~PARENB)
+;	or	dword[cflag], (CS8)
+
 
 setcanon:
 	push	rbp
 	mov	rbp, rsp
 
+	mov	rdx, rdi
 	mov	rax, IOCTL
 	mov	rdi, STDIN
 	mov	rsi, TCSETS
-	mov	rdx, canon_terminal
 	syscall
 
 	mov	rsp, rbp
 	pop	rbp
+	ret
 
 main:
 	push	rbp
 	mov	rbp, rsp
 
-	call	setnoncan
-
-.snd_msg:
-	mov	dword[tv_sec], 0x00
-	mov	dword[tv_nsec], 0x080000
-
-	mov	rax, 0x07
-	mov	rdi, pollfd
-	mov	rsi, 0x01
-	mov	rdx, 0x00
-	syscall
-
-	test	rax, rax
-	jz	.end
-
-;	mov	rax, 0x00
-;	mov	rdi, 0x00
-;	mov	rsi, char
-;	mov	rdx, 0x01
-;	syscall
-
-	add	ah, 0x30
-
-.print:
-	mov	byte[msg+25], al
-	mov	rax, 0x01
-	mov	rdi, 0x01
-	mov	rsi, msg
-	mov	rdx, 26
-	syscall
-
-	jmp	.snd_msg
-.end:
+	call	setcanon
 
 	mov	rsp, rbp
 	pop	rbp

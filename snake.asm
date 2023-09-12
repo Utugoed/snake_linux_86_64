@@ -2,44 +2,67 @@
 
 extern printf
 
-extern clear_screen
-extern draw_field
-extern move_cursor
+extern	clear_screen
+extern	draw_field
+extern	move_cursor
+
+extern	setcanon
+extern	setnoncan
+
 
 section .data
-	IOCTL     equ  0x10
-	TIOCGWS   equ  0x5413
+	IOCTL     	equ  0x10
+	TIOCGWS   	equ  0x5413
 
-	READ      equ  0x00
-	WRITE     equ  0x01
-	SELECT    equ  0x17
+	READ      	equ  0x00
+	WRITE     	equ  0x01
+	POLL    	equ  0x07
 
-	MVCR_SEQ  db   0x1b, "[%d;%dH"
-	MVCR_LEN  equ  $ - MVCR_SEQ
+	MVCR_SEQ  	db   0x1b, "[%d;%dH"
+	MVCR_LEN  	equ  $ - MVCR_SEQ
 
-	msg       db   "Waiting for a button", 0x0a, 0x00
-	msg_len   equ  $-msg-1
-	msg2      db   0x0a, "%x", 0x00
-	msgd      db   "%c", 0x00
+	fd_set   	dd	0x00
+	up_code   	dw	0xe048
 
-	timeval:
-	    time_t      dq	0x00
-	    suseconds_t dq	0x00
+	wrmpnt		db	0x2a
+	emptpnt		db	0x20
 
-	fd_set    dd   0x00
-	up_code   dw   0xe048
+	bias:
+		bias_x	db	0x02
+		bias_y	db	0x00
+	pollfd:
+		pfd	dd	0x00
+		events	dw	0x01
+		revents	dw	0x00
 
 section .bss
 	char resb 1
 	winsize:
-	    ws_row      resw 1
-	    ws_col      resw 1
-	    ws_xpixel   resw 1
-	    ws_ypixel   resw 1
+	    ws_row      resw	1
+	    ws_col      resw	1
+	    ws_xpixel   resw	1
+	    ws_ypixel   resw	1
+
+	canon_terminal:
+		ciflag	resb	4
+		coflag	resb	4
+		ccflag	resb	4
+		clflag	resb	4
+		crest	resb	44
+
+	noncan_terminal:
+		niflag	resb	4
+		noflag	resb	4
+		ncflag	resb	4
+		nlflag	resb	4
+		nrest	resb	44
+
+	worm:
+		worm_x	resb	1
+		worm_y	resb	1
 
 section .text
 	global main
-	global get_winsize
 
 get_winsize:
 	push 	rbp
@@ -54,72 +77,164 @@ get_winsize:
 	leave
 	ret
 
+draw_point:
+	push	rbp
+	mov	rbp, rsp
+
+	call	move_cursor
+
+	mov	rax, WRITE
+	mov	rdi, 0x01
+	mov	rsi, wrmpnt
+	mov	rdx, 0x01
+	syscall
+
+	mov	rsp, rbp
+	pop	rbp
+	ret
+
+erase_point:
+	push	rbp
+	mov	rbp, rsp
+
+	call	move_cursor
+
+	mov	rax, WRITE
+	mov	rdi, 0x01
+	mov	rsi, emptpnt
+	mov	rdx, 0x01
+	syscall
+
+	mov	rsp, rbp
+	pop	rbp
+	ret
+
+move_point:
+	push	rbp
+	mov	rbp, rsp
+
+	xor	rax, rax
+	mov	al, byte[worm_x]
+	mov	rsi, rax
+	mov	al, byte[worm_y]
+	mov	rdi, rax
+	call	erase_point
+
+	xor	rax, rax
+	mov	al, byte[bias_x]
+	add	byte[worm_x], al
+	mov	al, byte[bias_y]
+	add	byte[worm_y], al
+
+	xor	rax, rax		; Draw point
+	mov	al, byte[worm_y]	; With coordinates
+	mov	rdi, rax
+	mov	al, byte[worm_x]
+	mov	rsi, rax
+	call	draw_point
+
+	mov	rsp, rbp
+	pop	rbp
+	ret
+
+check_redirection:
+	push	rbp
+	mov	rbp, rsp
+
+	cmp	byte[char], 0x77		; 'w'
+	jne	.ch_red_a
+	mov	byte[bias_y], 0xff
+	mov	byte[bias_x], 0x00
+
+	.ch_red_a:
+		cmp	byte[char], 0x61	; 'a'
+		jne	.ch_red_s
+		mov	byte[bias_y], 0x00
+		mov	byte[bias_x], 0xfe
+
+	.ch_red_s:
+		cmp	byte[char], 0x73	; 's'
+		jne	.ch_red_d
+		mov	byte[bias_y], 0x01
+		mov	byte[bias_x], 0x00
+
+	.ch_red_d:
+		cmp	byte[char], 0x64	; 'd'
+		jne	.ch_red_end
+		mov	byte[bias_y], 0x00
+		mov	byte[bias_x], 0x02
+
+	.ch_red_end:
+		mov	rsp, rbp
+		pop	rbp
+		ret
+
 main:
 	push 	rbp
 	mov 	rbp, rsp
+
+	mov	rdi, canon_terminal
+	mov	rsi, noncan_terminal
+	call	setnoncan
 
 	call 	clear_screen
 	call 	get_winsize
 
 	xor 	rdi, rdi
 	xor 	rsi, rsi
-	mov 	di, [winsize]
-	mov 	si, [winsize + 2]
+	mov 	di, word[ws_row]
+	mov 	si, word[ws_col]
 	call 	draw_field
 
-;	mov	rdi, msgd
-;	mov 	rsi, 0x63
-;	mov	rax, 0x00
-;	call	printf
+	mov	byte[worm_y], 0x03	; Start point
+	mov	byte[worm_x], 0x03
+
+	xor	rax, rax		; Draw point
+	mov	al, byte[worm_y]	; With coordinates
+	mov	rdi, rax
+	mov	al, byte[worm_x]
+	mov	rsi, rax
+	call	draw_point
 
 .select:
-	mov 	qword[time_t],      0x00
-	mov 	qword[suseconds_t], 0x080000
+	xor	rdi, rdi		; Move cursor
+	mov	di, word[ws_row]	; To the place
+	mov	rsi, 0x01		; For input
+	call	move_cursor
 
-;	mov 	rax, WRITE      ;Message about waiting button
-;	mov 	rdi, 0x01
-;	mov 	rsi, msg
-;	mov 	rdx, msg_len
-;	syscall
-
-	mov 	rax, SELECT     ;Checking buttons were pressed
-	mov 	rdi, 0x01
-	mov 	rsi, fd_set
-	mov 	rdx, 0x00
-	mov 	r10, 0x00
-	mov 	r8,  timeval
+	mov 	rax, POLL		;Checking buttons were pressed
+	mov 	rdi, pfd
+	mov 	rsi, 0x01
+	mov 	rdx, 0x0100
 	syscall
 
-	push	rax
+	test 	rax, rax		;If not pressed go again
+	jz 	.move_worm
 
-	mov	rax, WRITE
-	mov	rdi, 0x01
-	pop	rsi
-	add	rsi, 0x30
+.getkey:
+	mov 	rax, READ
+	mov 	edi, 0x00
+	mov 	rsi, char
+	mov 	rdx, 0x01
+	syscall
+
+	mov 	rax, WRITE		;Source Index is already filled
+	mov 	rdi, 0x01		;Just print pressed button
 	mov	rdx, 0x01
 	syscall
 
-;	cmp 	rax, 0x00       ;If not pressed go again
-;	jne 	.getkey
-;	jmp 	.select
+	call	check_redirection
+	cmp 	byte[char], 0x0a	; '\n'
+	jz	.end
 
-.getkey:
-;	mov 	rax, READ
-;	mov 	edi, 0x00
-;	mov 	rsi, char
-;	mov 	rdx, 0x01
-;	syscall
-
-;	mov 	rax, WRITE      ;Source Index is already filled
-;	mov 	rdi, 0x01       ;Just print pressed button
-;	mov	rdx, 0x01
-;	syscall
-
-;	cmp 	byte[char], 13
-;	jz 	.end
-	jmp 	.select
+.move_worm:
+	call	move_point
+	jmp	.select
 
 .end:
+	mov	rdi, canon_terminal
+	call	setcanon
+
 	mov	rsp, rbp
 	pop	rbp
-
+	ret

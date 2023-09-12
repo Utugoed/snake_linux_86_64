@@ -20,6 +20,7 @@ section .bss
 section .text
 	global 		clear_screen
 	global		draw_field
+	global		move_cursor
 
 move_cursor:
 	push	rbp

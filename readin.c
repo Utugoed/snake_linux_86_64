@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <termios.h>
 #include <unistd.h>
-
+#include <sys/ioctl.h>
 
 int main(int argc, char* argv){
 	printf("IGNBRK = %x\n", IGNBRK);
@@ -12,6 +12,7 @@ int main(int argc, char* argv){
 	printf("INLCR = %x\n", INLCR);
 	printf("IGNCR = %x\n", IGNCR);
 	printf("ICRNL = %x\n", ICRNL);
+	printf("IXON = %x\n", IXON);
 
 	printf("OPOST = %x\n", OPOST);
 
@@ -25,5 +26,8 @@ int main(int argc, char* argv){
 	printf("PARENB = %x\n", PARENB);
 
 	printf("CS8 = %x\n", CS8);
+
+	printf("TCGETS = %x\n", TCGETS);
+	printf("TCSETS = %x\n", TCSETS);
 	return 0;
 }
