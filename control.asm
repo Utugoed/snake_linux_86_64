@@ -46,6 +46,7 @@ section .bss
 section .text
 	global	setcanon
 	global	setnoncan
+	global	check_redirection
 
 setnoncan:
 	push	rbp
@@ -88,3 +89,49 @@ setcanon:
 
 	mov	rsp, rbp
 	pop	rbp
+	ret
+
+check_redirection:
+	push	rbp
+	mov	rbp, rsp
+
+	cmp	byte[rdi], 0x77			; 'w'
+	jne	.ch_red_a
+
+	cmp	word[rsi], 0x01
+	jz	.ch_red_end
+	mov	word[rsi], 0xffff
+	mov	word[rdx], 0x00
+
+	.ch_red_a:
+		cmp	byte[rdi], 0x61	; 	'a'
+		jne	.ch_red_s
+
+		cmp	word[rdx], 0x02
+		jz	.ch_red_end
+		mov	word[rsi], 0x00
+		mov	word[rdx], 0xfffe
+
+	.ch_red_s:
+		cmp	byte[rdi], 0x73	;	's'
+		jne	.ch_red_d
+
+		cmp	word[rsi], 0xffff
+		jz	.ch_red_end
+		mov	word[rsi], 0x01
+		mov	word[rdx], 0x00
+
+	.ch_red_d:
+		cmp	byte[rdi], 0x64	; 	'd'
+		jne	.ch_red_end
+
+		cmp	word[rdx], 0xfffe
+		jz	.ch_red_end
+		mov	word[rsi], 0x00
+		mov	word[rdx], 0x02
+
+	.ch_red_end:
+		mov	rsp, rbp
+		pop	rbp
+		ret
+

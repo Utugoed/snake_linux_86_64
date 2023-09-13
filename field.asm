@@ -21,6 +21,7 @@ section .text
 	global 		clear_screen
 	global		draw_field
 	global		move_cursor
+	global		check_outside
 
 move_cursor:
 	push	rbp
@@ -173,3 +174,54 @@ drw_mid:
 	mov  	rsp, rbp
 	pop  	rbp
 	ret
+
+check_outside:
+	push	rbp
+	mov	rbp, rsp
+
+	cmp	rsi, 0x02
+	jg	.ch_out_r
+
+	mov	rax, 0x01
+	mov	rsp, rbp
+	pop	rbp
+	ret
+
+	.ch_out_r:
+		xor	rax, rax
+		mov	rax, r10
+		sub	rax, 0x02
+		cmp	rsi, rax
+		jle	.ch_out_t
+
+		mov	rax, 0x01
+		mov	rsp, rbp
+		pop	rbp
+		ret
+
+	.ch_out_t:
+		cmp	rdi, 0x02
+		jg	.ch_out_b
+
+		mov	rax, 0x01
+		mov	rsp, rbp
+		pop	rbp
+		ret
+
+	.ch_out_b:
+		mov	rax, rdx
+		sub	rax, 0x02
+		cmp	rdi, rax
+		jle	.ch_out_end
+
+		mov	rax, 0x01
+		mov	rsp, rbp
+		pop	rbp
+		ret
+
+	.ch_out_end:
+		mov	rax, 0x00
+		mov	rsp, rbp
+		pop	rbp
+		ret
+

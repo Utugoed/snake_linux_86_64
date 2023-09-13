@@ -9,17 +9,23 @@ extern	move_cursor
 extern	setcanon
 extern	setnoncan
 
+extern	check_redirection
+extern	check_outside
+
+extern	gen_pos
+
 
 section .data
-	IOCTL     	equ  0x10
-	TIOCGWS   	equ  0x5413
+	IOCTL     	equ	0x10
+	TIOCGWS   	equ	0x5413
 
-	READ      	equ  0x00
-	WRITE     	equ  0x01
-	POLL    	equ  0x07
+	READ      	equ	0x00
+	WRITE     	equ	0x01
+	POLL    	equ	0x07
+	NANOSLEEP	equ	0x23
 
-	MVCR_SEQ  	db   0x1b, "[%d;%dH"
-	MVCR_LEN  	equ  $ - MVCR_SEQ
+	MVCR_SEQ  	db	0x1b, "[%d;%dH"
+	MVCR_LEN  	equ	$ - MVCR_SEQ
 
 	fd_set   	dd	0x00
 	up_code   	dw	0xe048
@@ -34,6 +40,12 @@ section .data
 		pfd	dd	0x00
 		events	dw	0x01
 		revents	dw	0x00
+	timer:
+		t_sec	dq	0x00
+		t_nsec	dq	0x04000000
+	remtimer:
+		rt_sec	dq	0x00
+		rt_nsec	dq	0x00
 
 section .bss
 	char resb 1
@@ -60,6 +72,9 @@ section .bss
 	worm:
 		worm_x	resw	1
 		worm_y	resw	1
+	fruit:
+		fruit_x	resw	1
+		fruit_y	resw	1
 
 section .text
 	global main
@@ -137,75 +152,6 @@ move_point:
 	pop	rbp
 	ret
 
-check_redirection:
-	push	rbp
-	mov	rbp, rsp
-
-	cmp	byte[char], 0x77		; 'w'
-	jne	.ch_red_a
-	mov	word[bias_y], 0xffff
-	mov	word[bias_x], 0x00
-
-	.ch_red_a:
-		cmp	byte[char], 0x61	; 'a'
-		jne	.ch_red_s
-		mov	word[bias_y], 0x00
-		mov	word[bias_x], 0xfffe
-
-	.ch_red_s:
-		cmp	byte[char], 0x73	; 's'
-		jne	.ch_red_d
-		mov	word[bias_y], 0x01
-		mov	word[bias_x], 0x00
-
-	.ch_red_d:
-		cmp	byte[char], 0x64	; 'd'
-		jne	.ch_red_end
-		mov	word[bias_y], 0x00
-		mov	word[bias_x], 0x02
-
-	.ch_red_end:
-		mov	rsp, rbp
-		pop	rbp
-		ret
-
-check_outside:
-	push	rbp
-	mov	rbp, rsp
-
-	cmp	word[worm_x], 0x02
-	mov	rax, 0x01
-	mov	rsp, rbp
-	pop	rbp
-	ret
-
-	.ch_put_r:
-		xor	rdi, rdi
-		mov	
-		cmp	word[worm_x], 
-		mov	rax, 0x01
-		mov	rsp, rbp
-		pop	rbp
-		ret
-
-	.ch_out_t:
-		cmp	word[worm_x], 0x02
-		mov	rax, 0x01
-		mov	rsp, rbp
-		pop	rbp
-		ret
-
-	.ch_out_b:
-		cmp	word[worm_x], 0x02
-		mov	rax, 0x01
-		mov	rsp, rbp
-		pop	rbp
-		ret
-
-	mov	rax, 0x00
-	mov	rsp, rbp
-	pop	rbp
-	ret
 main:
 	push 	rbp
 	mov 	rbp, rsp
@@ -233,16 +179,38 @@ main:
 	mov	rsi, rax
 	call	draw_point
 
+	mov	rdi, qword[ws_row]
+	sub	rdi, 0x06
+	mov	rsi, qword[ws_col]
+	sub	rsi, 0x06
+	mov	rdx, fruit
+	call	gen_pos
+
+	add	qword[fruit_y], 0x03
+	add	qword[fruit_x], 0x03
+
+	xor	rax, rax
+	mov	ax, word[fruit_y]
+	mov	rdi, rax
+	mov	ax, word[fruit_x]
+	mov	rsi, rax
+	call	draw_point
+
 .select:
 	xor	rdi, rdi		; Move cursor
 	mov	di, word[ws_row]	; To the place
 	mov	rsi, 0x01		; For input
 	call	move_cursor
 
+	mov	rax, NANOSLEEP
+	mov	rdi, timer
+	mov	rsi, remtimer
+	syscall
+
 	mov 	rax, POLL		;Checking buttons were pressed
 	mov 	rdi, pfd
 	mov 	rsi, 0x01
-	mov 	rdx, 0x0100
+	mov 	rdx, 0x00
 	syscall
 
 	test 	rax, rax		;If not pressed go again
@@ -260,12 +228,29 @@ main:
 	mov	rdx, 0x01
 	syscall
 
+	mov	rdi, char
+	mov	rsi, bias_y
+	mov	rdx, bias_x
 	call	check_redirection
+
 	cmp 	byte[char], 0x0a	; '\n'
 	jz	.end
 
 .move_worm:
 	call	move_point
+
+	xor	rdi, rdi
+	mov	di, word[worm_y]
+	xor	rsi, rsi
+	mov	si, word[worm_x]
+	xor	rdx, rdx
+	mov	dx, word[ws_row]
+	xor	r10, r10
+	mov	r10w, word[ws_col]
+	call	check_outside
+
+	cmp	rax, 0x01
+	jz	.end
 	jmp	.select
 
 .end:
