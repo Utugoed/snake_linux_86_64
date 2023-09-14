@@ -12,6 +12,8 @@ section .data
 
 	board		db	"--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------", 0x00
 	plots		db	"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ", 0x00
+	total_label	db	"Total: ", 0x00
+	total_len	dq	$ - total_label
 
 section .bss
 	MVCR_SEQ	resb	10	; 0x1b, "[%d;%dH", 0x00
@@ -111,64 +113,77 @@ draw_field:
 	mov  	r13, rsi		; Number of columns
 	sub  	r13, 0x04		; Without borders
 
-crt_tnb:
-	mov	rax, board		; String pointer
-	mov	byte[rax], 0x2b		; First '+'
-	add	rax, r13
-	inc	rax
-	mov	byte[rax], 0x2b		; Last '+'
-	inc	rax
-	mov	byte[rax], 0x00
+	.crt_tnb:
+		mov	rax, board		; String pointer
+		mov	byte[rax], 0x2b		; First '+'
+		add	rax, r13
+		inc	rax
+		mov	byte[rax], 0x2b		; Last '+'
+		inc	rax
+		mov	byte[rax], 0x00
 
-crt_mid:
-	mov	rax, plots		; String pointer
-	mov	byte[rax], 0x7c		; First '|'
-	add	rax, r13
-	inc	rax
-	mov	byte[rax], 0x7c		; Last '|'
-	inc	rax
-	mov	byte[rax], 0x00
+	.crt_mid:
+		mov	rax, plots		; String pointer
+		mov	byte[rax], 0x7c		; First '|'
+		add	rax, r13
+		inc	rax
+		mov	byte[rax], 0x7c		; Last '|'
+		inc	rax
+		mov	byte[rax], 0x00
 
-	add	r13, 0x02		; It is with visible borders now
+		add	r13, 0x02		; It is with visible borders now
 
-strt_drw:
-	mov	r14, 0x02
+	.strt_drw:
+		mov	r14, 0x02
 
+		mov	rdi, r14
+		mov	rsi, 0x02
+		call	move_cursor
+
+		mov	rax, WRITE
+		mov	rdi, 0x01
+		mov	rsi, board
+		mov	rdx, r13
+		syscall
+
+	.drw_mid:
+		inc	r14
+
+		mov	rdi, r14
+		mov	rsi, 0x02
+		call	move_cursor
+
+		mov	rax, WRITE
+		mov	rdi, 0x01
+		mov	rsi, plots
+		mov	rdx, r13
+		syscall
+
+		cmp	r14, r12
+		jnz	.drw_mid
+
+	.draw_bot:
+		inc	r14		; Drawing bottom board
+		mov	rdi, r14	; 
+		mov	rsi, 0x02
+		call	move_cursor
+
+		mov	rax, WRITE
+		mov	rdi, 0x01
+		mov	rsi, board
+		mov	rdx, r13
+		syscall
+
+	inc	r14			; Writing 'Total: '
 	mov	rdi, r14
-	mov	rsi, 0x02
+	mov	rsi, r13		; Move cursor to
+	sub	rsi, 0x14		; the right bottom
 	call	move_cursor
 
 	mov	rax, WRITE
 	mov	rdi, 0x01
-	mov	rsi, board
-	mov	rdx, r13
-	syscall
-
-drw_mid:
-	inc	r14
-
-	mov	rdi, r14
-	mov	rsi, 0x02
-	call	move_cursor
-
-	mov	rax, WRITE
-	mov	rdi, 0x01
-	mov	rsi, plots
-	mov	rdx, r13
-	syscall
-
-	cmp	r14, r12
-	jnz	drw_mid
-
-	inc	r14
-	mov	rdi, r14
-	mov	rsi, 0x02
-	call	move_cursor
-
-	mov	rax, WRITE
-	mov	rdi, 0x01
-	mov	rsi, board
-	mov	rdx, r13
+	mov	rsi, total_label
+	mov	rdx, [total_len]
 	syscall
 
 	mov  	rsp, rbp
