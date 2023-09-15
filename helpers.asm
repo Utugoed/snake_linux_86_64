@@ -1,5 +1,7 @@
 ; helpers.asm
 
+; main = 117
+
 
 section .data
 	GETTIME			equ	0x60
@@ -17,16 +19,16 @@ section .data
 		x		dw	0x00
 
 	decimal_divisor		dq	0x0a
-
+	msg			db	0x20
 section .bss
 	divisor2		resq	0x01
 
 	decimal			resb	0x0a
 
 section .text
+;	global	main
 	global	gen_pos
 	global	print_decimal
-	global	main
 
 gen_pos:
 	push	rbp
@@ -51,10 +53,11 @@ gen_pos:
 	idiv	qword[divisor2]
 
 	pop	rax				; Pop the fruit pointer
-	mov	word[rax], dx			; Put the Y to fruit
+	mov	word[rax+2], dx			; Put the Y to fruit
 	pop	rdi				; Pop the width
 	push	rax				; Save the fruit pointer
 
+	sar	rdi, 1				; Fruit must be at every 2nd x
 	mov	qword[divisor2], rdi		; We will divide time with width
 
 	mov	rax, GETTIME
@@ -69,13 +72,12 @@ gen_pos:
 	idiv	qword[divisor1]
 
 	mov	rax, rdx			; And with width
-	sar	rax, 1				; Fruit must be at every 2nd x
 	xor	rdx, rdx
 	idiv	qword[divisor2]
 
-	sal	rax, 1				; Fruit must be at every 2nd x
+	sal	rdx, 1				; Fruit must be at every 2nd x
 	pop	rax				; Then put the result
-	mov	word[rax+2], dx			; To the fruit
+	mov	word[rax], dx			; To the fruit
 
 	mov	rsp, rbp
 	pop	rbp
@@ -112,20 +114,28 @@ print_decimal:
 	pop	rbp
 	ret
 
-main:
-	push	rbp
-	mov	rsp, rbp
-
-	mov	rdi, 0x0a
-	mov	rsi, 0x0a
-	mov	rdx, pos
-	call	gen_pos
-
-	xor	rdi, rdi
-	mov	di, word[y]
-	call	print_decimal
-	mov	di, word[x]
-	call	print_decimal
-
-	mov	rbp, rsp
-	pop	rbp
+;main:
+;	push	rbp
+;	mov	rbp, rsp
+;
+;	mov	rdi, 0xa
+;	mov	rsi, 0x14
+;	mov	rdx, pos
+;	call	gen_pos
+;
+;	xor	rdi, rdi
+;	mov	di, word[y]
+;	call	print_decimal
+;
+;	mov	rax, 0x01
+;	mov	rdi, 0x01
+;	mov	rsi, msg
+;	mov	rdx, 0x01
+;	syscall
+;
+;	mov	di, word[x]
+;	call	print_decimal
+;
+;	mov	rsp, rbp
+;	pop	rbp
+;

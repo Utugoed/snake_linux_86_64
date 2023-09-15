@@ -1,5 +1,10 @@
 ; snake.asm
 
+; main - 215
+; draw_fruit - 243
+; move_point - 135
+; move_worm - 284
+
 extern printf
 
 extern	clear_screen
@@ -34,8 +39,8 @@ section .data
 	wrmpnt		db	0x2a
 	emptpnt		db	0x20
 
-	score		dq	0x01
-
+	score		dq	0x00
+	nbf		db	0x00
 	bias:
 		bias_x	dw	0x02
 		bias_y	dw	0x00
@@ -53,30 +58,31 @@ section .data
 section .bss
 	char resb 1
 	winsize:
-	    ws_row      resw	1
-	    ws_col      resw	1
-	    ws_xpixel   resw	1
-	    ws_ypixel   resw	1
+	    ws_row      resw	0x01
+	    ws_col      resw	0x01
+	    ws_xpixel   resw	0x01
+	    ws_ypixel   resw	0x01
 
 	canon_terminal:
-		ciflag	resb	4
-		coflag	resb	4
-		ccflag	resb	4
-		clflag	resb	4
-		crest	resb	44
+		ciflag	resb	0x04
+		coflag	resb	0x04
+		ccflag	resb	0x04
+		clflag	resb	0x04
+		crest	resb	0x2c
 	noncan_terminal:
-		niflag	resb	4
-		noflag	resb	4
-		ncflag	resb	4
-		nlflag	resb	4
-		nrest	resb	44
+		niflag	resb	0x04
+		noflag	resb	0x04
+		ncflag	resb	0x04
+		nlflag	resb	0x04
+		nrest	resb	0x2c
 
 	worm:
-		worm_x	resw	1
-		worm_y	resw	1
+		worm_x	resw	0x01
+		worm_y	resw	0x01
+		tail	resd	0xff
 	fruit:
-		fruit_x	resw	1
-		fruit_y	resw	1
+		fruit_x	resw	0x01
+		fruit_y	resw	0x01
 
 section .text
 	global main
@@ -130,29 +136,82 @@ move_point:
 	push	rbp
 	mov	rbp, rsp
 
-	xor	rax, rax
-	mov	ax, word[worm_x]
+	mov	rcx, worm
+	mov	rax, qword[score]	; Score number is equivalent
+	sal	rax, 2			; To the number of additional snake blocks
+	add	rcx, rax		; Pointer to the snakes last element
+
+	xor	r13, r13
+	mov	r13w, word[fruit_y]
+
+	xor	rax, rax			; Erasing the last element
+	mov	ax, word[rcx]
 	mov	rsi, rax
-	mov	ax, word[worm_y]
+	mov	ax, word[rcx+2]
 	mov	rdi, rax
 	call	erase_point
 
-	xor	rax, rax
-	mov	ax, word[bias_x]
-	add	word[worm_x], ax
-	mov	ax, word[bias_y]
-	add	word[worm_y], ax
+	mov	r13w, word[fruit_y]
 
-	xor	rax, rax		; Draw point
-	mov	ax, word[worm_y]	; With coordinates
-	mov	rdi, rax
-	mov	ax, word[worm_x]
-	mov	rsi, rax
-	call	draw_point
+	mov	rcx, worm
+	mov	rax, qword[score]		; Score number is equivalent
+	sal	rax, 2				; To the number of additional snake blocks
+	add	rcx, rax			; Pointer to the snakes last element
+	mov	rax, qword[score]		; Additional blocks number
+	xor	rdx, rdx
 
-	mov	rsp, rbp
-	pop	rbp
-	ret
+	mov	r13w, word[fruit_y]
+
+	.move_the_que:
+		test	rax, rax		; If no more
+		jz	.move_first_el		; Go move first block
+		mov	rbx, rcx		; Current block coors addr
+		sub	rbx, 0x04		; Previous block coors addr
+		mov	edx, dword[rbx]		; Put the value of previous block
+		mov	dword[rcx], edx		; to the current block
+		mov	rcx, rbx		; New current block is a previous
+		dec	rax
+		jmp	.move_the_que
+
+	mov	r13w, word[fruit_y]
+
+	.move_first_el:
+		xor	rax, rax
+		mov	ax, word[bias_x]
+		add	word[worm_x], ax
+		mov	ax, word[bias_y]
+		add	word[worm_y], ax
+
+		xor	rax, rax		; Draw point
+		mov	ax, word[worm_y]	; With coordinates
+		mov	rdi, rax
+		mov	ax, word[worm_x]
+		mov	rsi, rax
+		call	draw_point
+
+	mov	r13w, word[fruit_y]
+
+		cmp	byte[nbf], 0x01
+		jnz	.end_moving
+
+		mov	byte[nbf], 0x00
+		mov	rax, worm		; Worm start
+		mov	rbx, qword[score]	; Worm length
+		sal	rbx, 2			; 4byte for a block
+		add	rax, rbx		; Worm's tail pointer
+		mov	ebx, dword[rax]		; Tails coors
+
+		xor	rsi, rsi		; Draw tail
+		mov	si, bx			; There is an X in bx
+		sar	ebx, 16			; Replacing bx with Y
+		xor	rdi, rdi
+		mov	di, bx
+		call	draw_point
+
+	.end_moving:
+		mov	rsp, rbp
+		pop	rbp
+		ret
 
 main:
 	push 	rbp
@@ -187,12 +246,12 @@ main:
 		sub	rdi, 0x06		; Without top and bott borders
 		xor	rsi, rsi
 		mov	si, word[ws_col]
-		sub	rsi, 0x08		; Without left and right
+		sub	rsi, 0x06		; Without left and right
 		mov	rdx, fruit
 		call	gen_pos
 
-		add	qword[fruit_y], 0x03
-		add	qword[fruit_x], 0x04
+		add	word[fruit_y], 0x03
+		add	word[fruit_x], 0x03
 
 		xor	rax, rax
 		mov	ax, word[fruit_y]
@@ -256,6 +315,33 @@ main:
 		call	move_point
 
 		xor	rdi, rdi
+		xor	rsi, rsi
+
+		mov	di, word[worm_y]		; If fruit Y
+		mov	si, word[fruit_y]		; Is equivalent
+		cmp	rdi, rsi			; To worm Y
+		jnz	.loop_end
+
+		mov	di, word[worm_x]		; And fruit X
+		mov	si, word[fruit_x]		; Is equivalent
+		cmp	rdi, rsi			; To worm Y
+		jnz	.loop_end
+
+		mov	rax, [score]			; Total score
+		inc	rax				; Is increasing
+		mov	[score], rax
+							; And worm receives a new block
+		mov	rbx, worm			; Pointer to the worms
+		sal	rax, 2
+		add	rbx, rax			; tail
+		xor	rax, rax
+		mov	eax, dword[winsize]
+		mov	dword[rbx], eax
+		mov	byte[nbf], 0x01			; New block flag
+		jmp	.draw_fruit
+
+	.loop_end:
+		xor	rdi, rdi
 		mov	di, word[worm_y]
 		xor	rsi, rsi
 		mov	si, word[worm_x]
@@ -265,22 +351,6 @@ main:
 		mov	r10w, word[ws_col]
 		call	check_outside
 
-		mov	di, word[worm_y]
-		mov	si, word[fruit_y]
-		cmp	rdi, rsi
-		jnz	.loop_end
-
-		mov	di, word[worm_x]
-		mov	si, word[fruit_x]
-		cmp	rdi, rsi
-		jnz	.loop_end
-
-		mov	rax, [score]
-		inc	rax
-		mov	[score], rax
-		jmp	.draw_fruit
-
-	.loop_end:
 		cmp	rax, 0x01
 		jz	.end
 		jmp	.select
