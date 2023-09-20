@@ -213,6 +213,36 @@ move_point:
 		pop	rbp
 		ret
 
+check_tail:
+	push	rbp
+	mov	rbp, rsp
+
+	xor	rax, rax
+	xor	rcx, rcx
+	mov	rbx, worm
+
+	.check_coors_over:
+		add	rbx, 0x04
+		mov	ecx, dword[rbx]
+		test	rcx, rcx
+		jz	.check_tail_end
+
+	.check_tail_x:
+		cmp	cx, si
+		jz	.check_tail_y
+		jmp	.check_coors_over
+
+	.check_tail_y:
+		sar	rcx, 0x10
+		cmp	cx, di
+		jnz	.check_coors_over
+		mov	rax, 0x01
+
+	.check_tail_end:
+		mov	rsp, rbp
+		pop	rbp
+		ret
+
 main:
 	push 	rbp
 	mov 	rbp, rsp
@@ -249,6 +279,25 @@ main:
 		sub	rsi, 0x06		; Without left and right
 		mov	rdx, fruit
 		call	gen_pos
+
+		xor	rdi, rdi
+		xor	rsi, rsi
+		mov	di, word[fruit_y]
+		mov	si, word[fruit_x]
+
+	.check_fruit_head_y:
+		cmp	di, word[worm_y]
+		jnz	.check_fruit_in_tail
+
+	.check_fruit_head_x:
+		cmp	si, word[worm_x]
+		jz	.draw_fruit
+
+	.check_fruit_in_tail:
+		call	check_tail
+
+		cmp	rax, 0x01
+		jz	.draw_fruit
 
 		add	word[fruit_y], 0x03
 		add	word[fruit_x], 0x03
@@ -350,6 +399,15 @@ main:
 		xor	r10, r10
 		mov	r10w, word[ws_col]
 		call	check_outside
+
+		cmp	rax, 0x01
+		jz	.end
+
+		xor	rdi, rdi
+		mov	di, word[worm_y]
+		xor	rsi, rsi
+		mov	si, word[worm_x]
+		call	check_tail
 
 		cmp	rax, 0x01
 		jz	.end
